@@ -1,37 +1,85 @@
 # Hand Gesture Cookie Run Controller
 
-Control Cookie Run (or any game) with hand gestures via webcam.
+Control Cookie Run (or any game) with your fingers via webcam.
 
-## Controls
+## Finger-Configurable Controls
 
-| Gesture | Action | Key |
-|---------|--------|-----|
-| Open palm  | Jump | `space` |
-| Closed fist  | Slide | `down` |
-| `c` | Swap jump/slide keys | |
-| `l` | Toggle hand skeleton overlay | |
-| `q` | Quit | |
+On first launch a **setup screen** appears where you assign **one or more
+fingers at once** to each action. Raise **any pose** — a single finger, or
+several fingers together like a peace sign (index+middle) — and press **SPACE**
+to capture every finger currently raised in one shot. Add more poses if you
+like, then press **ENTER** when the action is complete:
+
+| Step | Action | Meaning |
+|------|--------|---------|
+| 1 | **JUMP** | the finger(s) that make your character jump |
+| 2 | **SLIDE** | the finger(s) that make your character slide (held while raised) |
+| 3 | **READY** | the finger(s) for a resting / neutral pose |
+
+Anything can be bound to anything — e.g. JUMP = **INDEX+MIDDLE** together
+(the whole chord must be raised), SLIDE = **RING** alone, READY = **PINKY**.
+A single finger is just a 1-finger chord.
+
+During play your mapping behaves like this:
+
+- A **complete JUMP chord** up → taps the jump key (tap twice for a double jump)
+- A **complete SLIDE chord** up → *holds* the slide key while raised (hold-to-slide)
+- A **complete READY chord** up → neutral; overrides everything else
+- Raising only **part** of a chord → nothing fires — the whole chord must be up
+- A complete JUMP chord and SLIDE chord at the same time → neutral (ambiguous)
+
+### Setup screen keys
+
+| Key | Action |
+|-----|--------|
+| `space` | Capture the currently raised pose (all fingers at once) |
+| `enter` | Finish this action and move to the next step |
+| `esc` | Remove the last finger added (or edit the previous action) |
+| `c` | Restart the setup from scratch |
+| `q` | Quit |
+
+### In-game keys
+
+| Key | Action |
+|-----|--------|
+| `r` | Re-run the setup screen (reconfigure fingers) |
+| `c` | Swap jump/slide key bindings |
+| `l` | Toggle hand skeleton overlay |
+| `q` | Quit |
 
 ## How It Works
 
-- **Open palm**: 3+ fingers extended → triggers jump
-- **Closed fist**: 0-1 fingers extended → triggers slide
-- Finger extension is detected by projecting each fingertip along the hand's
-  own axis (wrist → middle MCP), normalized by palm size — so it stays accurate
-  when the hand is tilted, rotated, or held far from the camera
-- Each finger has its own threshold (the ring and pinky naturally curl a bit
-  even in a relaxed open hand), which reduces both missed opens and misfires
-- Up to two hands are tracked; the one closest to the camera (largest palm)
-  controls the game, so a second hand in the background can't hijack it
-- Hands too small in the frame (far from the camera) are treated as absent, so
-  noisy far-away detections can't misfire a jump or slide
-- A hand-openness score (average fingertip spread vs palm size) must agree with
-  the finger count, so partial or ambiguous poses are ignored instead of
-  misfiring a jump or slide
-- An adaptive debounce accepts genuine gesture changes instantly while blocking
-  single-frame flicker
-- The HUD shows a live FPS and inference-latency meter so you can verify
-  performance while tuning
+- Each of the four long fingers (index→pinky) is measured by projecting the
+  fingertip along its base→PIP bone axis, normalized by bone length — robust
+  to hand size, distance, and rotation
+- **Dedicated thumb metric** — the thumb abducts *across* the palm instead of
+  extending along one bone, so it uses its own distance-based reach metric
+  (thumb tip → index MCP, normalized by palm size) with separate thresholds.
+  A resting thumb (≈0.5–0.9) is never misread as raised
+- Per-finger **EMA smoothing** (0.35), **wide hysteresis** (separate on/off
+  thresholds), and **stability confirmation** (4 frames) remove landmark
+  jitter and flicker
+- **Gesture-hold grace** (6 frames) — once JUMP/SLIDE fires, the gesture stays
+  sticky, so a 1-frame flicker can't stutter a held slide key or re-fire a
+  jump, while fast double-taps stay responsive (jump fires on the raw edge)
+- **Palm-size gate** — hands too small in the frame (far from the camera) are
+  treated as absent so their noisy landmarks can't misfire finger states
+- Brief hand-tracking dropouts don't reset your finger states
+- **Easy, accurate pose capture** — the setup screen registers
+  comfortably-raised fingers (extension ≥ 0.80), so you don't need to hold a
+  perfectly rigid pose; hysteresis (stays raised until below 0.55) plus
+  4-frame persistence prevents flicker, and a resting finger (≈0.2–0.6) never
+  sneaks into the pose. MediaPipe's model confidence is also lowered (0.3) so
+  the hand is found even in unusual poses (fists, peace signs, angled hands)
+- The closest hand (largest palm) controls the game, so a second hand in the
+  background can't hijack it
+- **Pose capture** — the setup screen reads ALL fingers raised at once, so a
+  multi-finger pose like index+middle is captured as one combo in a single
+  SPACE press
+- **Chord matching** — an action fires only when all of its assigned fingers
+  are raised together (extra non-assigned fingers are fine), so combos like
+  index+middle for jump work naturally
+- The HUD shows each finger's live extension value and up/down state, plus FPS
 
 ## Install & Run
 
@@ -48,7 +96,7 @@ Model auto-downloads on first run (~5 MB).
   on camera I/O and always processes the newest frame (stale frames are dropped).
 - The camera driver buffer is minimized and MJPG capture is requested
   (best effort) to lower input latency.
-- Inference latency and FPS are shown live in the HUD's top-right corner.
+- FPS is shown live in the HUD's top-right corner.
 
 ## Tuning
 
@@ -56,12 +104,19 @@ All recognition thresholds live at the top of `main.py` as named constants:
 
 | Constant | Meaning |
 |----------|---------|
-| `OPEN_HAND_MIN_FINGERS` | min extended fingers to count as open palm (jump) |
-| `FIST_MAX_FINGERS` | max extended fingers to count as fist (slide) |
-| `OPENNESS_OPEN_MIN` | below this spread, a high finger count is vetoed |
-| `OPENNESS_FIST_MAX` | above this spread, a low finger count is vetoed |
+| `FINGER_SMOOTH_ALPHA` | EMA smoothing per finger (lower = smoother) |
+| `EXTEND_ON_RATIO` | extension ratio above this = long finger "up" |
+| `EXTEND_OFF_RATIO` | below this = long finger "down" (hysteresis gap) |
+| `THUMB_EXTEND_ON_RATIO` | thumb reach (palm-units) above this = thumb "up" |
+| `THUMB_EXTEND_OFF_RATIO` | below this = thumb "down" (hysteresis gap) |
+| `CONFIRM_FRAMES` | frames a finger must hold a state before committing |
+| `HAND_LOST_TOLERANCE` | lost-hand frames before finger states reset |
+| `GESTURE_HOLD_FRAMES` | sticky grace frames that hold JUMP/SLIDE through flicker |
 | `MIN_PALM_SIZE` | smallest hand size (normalized) that is trusted |
-| `GESTURE_COOLDOWN_SEC` | minimum time between key presses |
-| `GESTURE_STABLE_SEC` | how long a gesture is held before it's "trusted" |
+| `SETUP_SELECT_RATIO` | min extension for a finger to count as raised in setup (0.80) |
+| `SETUP_SELECT_OFF_RATIO` | below this a raised finger is released (hysteresis, 0.55) |
+| `SETUP_CONFIRM_FRAMES` | frames the same pose must persist before setup confirmation |
+| `GESTURE_COOLDOWN_SEC` | minimum time between jump taps |
+| `KEY_JUMP` / `KEY_SLIDE` | default key bindings |
 | `MAX_HANDS` | max hands tracked (nearest one wins control) |
 | `CAMERA_INDEX` / `FRAME_WIDTH` / `FRAME_HEIGHT` / `CAMERA_FPS` | camera setup |
