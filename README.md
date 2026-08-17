@@ -2,7 +2,7 @@
 
 Control Cookie Run (or any game) with your hand via webcam. Uses MediaPipe hand tracking to detect finger poses and translates them into keyboard input in real time.
 
-**Version 5.0.0** — reusable finger chords, black-theme window with camera/sidebar split, in-program tracking toggle.
+**Version 6.0.0** — refactored into a modular package architecture (`app/`), reusable finger chords, black-theme window with camera/sidebar split, in-program tracking toggle.
 
 ## Features
 
@@ -119,68 +119,70 @@ You can bind **one finger** or a **chord** of several fingers to each action. A 
 
 ## Tuning Parameters
 
-All thresholds are at the top of `main.py` as constants.
+All thresholds live in `app/config/settings.py` as typed, immutable dataclasses
+grouped by concern — no more scanning one flat list of module-level globals.
 
-### Accuracy Settings
+### `CameraSettings`
 
-| Constant | Default | Description |
-|----------|---------|-------------|
-| `FINGER_SMOOTH_ALPHA` | 0.35 | EMA smoothing (lower = smoother, higher = faster) |
-| `EXTEND_ON_RATIO` | 0.70 | Long finger "up" threshold |
-| `EXTEND_OFF_RATIO` | 0.35 | Long finger "down" threshold (hysteresis) |
-| `CONFIRM_FRAMES` | 4 | Frames a finger must hold a state before commit |
-| `HAND_LOST_TOLERANCE` | 5 | Lost-hand frames before finger states reset |
-| `THUMB_EXTEND_ON_RATIO` | 1.10 | Thumb "up" threshold (hybrid metric) |
-| `THUMB_EXTEND_OFF_RATIO` | 0.85 | Thumb "down" threshold (hysteresis) |
-| `MIN_PALM_SIZE` | 0.05 | Minimum trusted hand size (normalized) |
+| Field | Default | Description |
+|-------|---------|-------------|
+| `width` / `height` | 480 / 360 | Camera resolution |
+| `fps` | 60 | Target camera FPS |
+| `index` | 0 | Camera device index |
+| `warmup_sec` | 5.0 | Max time to wait for the first camera frame |
+| `max_frame_failures` | 30 | Consecutive read failures before giving up |
 
-### Gesture Settings
+### `DetectionSettings`
 
-| Constant | Default | Description |
-|----------|---------|-------------|
-| `GESTURE_HOLD_FRAMES` | 6 | Sticky frames for gesture stability |
-| `GESTURE_COOLDOWN_SEC` | 0.25 | Minimum gap between two jump taps |
-| `JUMP_FLASH_FRAMES` | 8 | Frames the HUD border flashes green after a jump |
+| Field | Default | Description |
+|-------|---------|-------------|
+| `max_hands` | 1 | Hands tracked (closest one controls) |
+| `finger_smooth_alpha` | 0.35 | EMA smoothing (lower = smoother, higher = faster) |
+| `extend_on_ratio` | 0.70 | Long finger "up" threshold |
+| `extend_off_ratio` | 0.35 | Long finger "down" threshold (hysteresis) |
+| `confirm_frames` | 4 | Frames a finger must hold a state before commit |
+| `hand_lost_tolerance` | 5 | Lost-hand frames before finger states reset |
+| `min_palm_size` | 0.05 | Minimum trusted hand size (normalized) |
+| `thumb_extend_on_ratio` | 1.10 | Thumb "up" threshold (hybrid metric) |
+| `thumb_extend_off_ratio` | 0.85 | Thumb "down" threshold (hysteresis) |
 
-### Setup Settings
+### `GestureSettings`
 
-| Constant | Default | Description |
-|----------|---------|-------------|
-| `SETUP_SELECT_RATIO` | 0.40 | Min extension to count a finger as raised in setup |
-| `SETUP_SELECT_OFF_RATIO` | 0.25 | Release threshold (hysteresis) |
-| `SETUP_THUMB_SELECT_RATIO` | 0.90 | Thumb capture threshold (hybrid) |
-| `SETUP_THUMB_SELECT_OFF_RATIO` | 0.70 | Thumb release threshold |
-| `SETUP_SELECT_DOMINANCE_MARGIN` | 0.25 | Dominance margin for coupled fingers |
-| `FIST_LONG_CURL_RATIO` | 0.25 | Long finger extension below this = curled (fist) |
-| `FIST_THUMB_CURL_RATIO` | 0.60 | Thumb hybrid below this = not extended (fist) |
+| Field | Default | Description |
+|-------|---------|-------------|
+| `gesture_hold_frames` | 6 | Sticky frames for gesture stability |
+| `gesture_cooldown_sec` | 0.25 | Minimum gap between two jump taps |
+| `jump_flash_frames` | 8 | Frames the HUD border flashes green after a jump |
 
-### Calibration Settings
+### `SetupSettings`
 
-| Constant | Default | Description |
-|----------|---------|-------------|
-| `CALIB_ON_FRACTION` | 0.62 | On-threshold placed this fraction up the measured range |
-| `CALIB_OFF_FRACTION` | 0.32 | Off-threshold placed this fraction up the measured range |
-| `CALIB_MIN_RANGE` | 0.15 | Below this measured range, distrust the sample and keep the default |
+| Field | Default | Description |
+|-------|---------|-------------|
+| `select_ratio` | 0.40 | Min extension to count a finger as raised in setup |
+| `select_off_ratio` | 0.25 | Release threshold (hysteresis) |
+| `thumb_select_ratio` | 0.90 | Thumb capture threshold (hybrid) |
+| `thumb_select_off_ratio` | 0.70 | Thumb release threshold |
+| `select_dominance_margin` | 0.25 | Dominance margin for coupled fingers |
+| `fist_long_curl_ratio` | 0.25 | Long finger extension below this = curled (fist) |
+| `fist_thumb_curl_ratio` | 0.60 | Thumb hybrid below this = not extended (fist) |
 
-### Performance Settings
+### `CalibrationSettings`
 
-| Constant | Default | Description |
-|----------|---------|-------------|
-| `FRAME_WIDTH` | 480 | Camera resolution width |
-| `FRAME_HEIGHT` | 360 | Camera resolution height |
-| `CAMERA_FPS` | 60 | Target camera FPS |
-| `CAMERA_INDEX` | 0 | Camera device index |
-| `MAX_HANDS` | 1 | Hands tracked (closest one controls) |
+| Field | Default | Description |
+|-------|---------|-------------|
+| `on_fraction` | 0.62 | On-threshold placed this fraction up the measured range |
+| `off_fraction` | 0.32 | Off-threshold placed this fraction up the measured range |
+| `min_range` | 0.15 | Below this measured range, distrust the sample and keep the default |
 
-### General Settings
+### `KeyBindings` / `PresetFingers`
 
-| Constant | Default | Description |
-|----------|---------|-------------|
-| `KEY_JUMP` | "space" | Default jump key |
-| `KEY_SLIDE` | "down" | Default slide key |
-| `PRESET_JUMP_FINGERS` | (1,) | Quick-start jump fingers (INDEX) |
-| `PRESET_SLIDE_FINGERS` | (2,) | Quick-start slide fingers (MIDDLE) |
-| `PRESET_READY_FINGERS` | (1, 2) | Quick-start ready fingers (INDEX + MIDDLE) |
+| Field | Default | Description |
+|-------|---------|-------------|
+| `jump_key` | "space" | Default jump key |
+| `slide_key` | "down" | Default slide key |
+| `preset.jump` | (1,) | Quick-start jump fingers (INDEX) |
+| `preset.slide` | (2,) | Quick-start slide fingers (MIDDLE) |
+| `preset.ready` | (1, 2) | Quick-start ready fingers (INDEX + MIDDLE) |
 
 ## Performance Tips
 
@@ -194,7 +196,7 @@ All thresholds are at the top of `main.py` as constants.
 
 ### Camera Issues
 - Check camera permissions in Windows Settings.
-- Try different `CAMERA_INDEX` values (0, 1, 2...).
+- Try different `CameraSettings.index` values (0, 1, 2...).
 - Ensure no other app is using the camera.
 
 ### Detection Issues
@@ -202,29 +204,65 @@ All thresholds are at the top of `main.py` as constants.
 - Move your hand closer to the camera.
 - Check the SIGNAL indicator — it should read `GOOD`.
 - Re-run calibration (`R` during play) — a fresh calibration often fixes misfires.
-- Lower `MIN_PALM_SIZE` if your hand reads too small.
-- Adjust `EXTEND_ON_RATIO` if fingers aren't detected.
+- Lower `DetectionSettings.min_palm_size` if your hand reads too small.
+- Adjust `DetectionSettings.extend_on_ratio` if fingers aren't detected.
 
 ### Performance Issues
-- Lower `FRAME_WIDTH` and `FRAME_HEIGHT`.
+- Lower `CameraSettings.width` / `height`.
 - Close other applications.
 - Check the FPS meter — target >25 fps.
 
 ### False Triggers
-- Increase `CONFIRM_FRAMES` for more stability.
-- Increase `MIN_PALM_SIZE` to ignore small hands.
-- Widen the hysteresis gap (lower `EXTEND_OFF_RATIO`).
+- Increase `DetectionSettings.confirm_frames` for more stability.
+- Increase `DetectionSettings.min_palm_size` to ignore small hands.
+- Widen the hysteresis gap (lower `DetectionSettings.extend_off_ratio`).
 
 ## Project Structure
 
+The project is organized as a modular package (`app/`) split by
+responsibility, with `main.py` as a thin entry point:
+
 ```
 hand-cookie-run-controller/
-├── main.py              # Controller (camera, detection, input, HUD)
-├── requirements.txt     # Python dependencies
-├── hand_config.json     # Saved finger mapping + calibration (auto-generated)
+├── main.py                       # Thin entry point — delegates to app.workflow.application
+├── requirements.txt               # Python dependencies
+├── hand_config.json                # Saved finger mapping + calibration (auto-generated)
 ├── model/
-│   └── hand_landmarker.task   # MediaPipe hand model (auto-downloaded)
-└── README.md
+│   └── hand_landmarker.task        # MediaPipe hand model (auto-downloaded)
+├── README.md
+└── app/
+    ├── config/                     # Configuration management
+    │   ├── settings.py               # Typed dataclasses for every tunable constant
+    │   ├── paths.py                  # Pathlib-based filesystem locations
+    │   └── persistence.py            # Save/load hand_config.json
+    ├── domain/                      # Pure gesture/finger domain logic (no I/O)
+    │   ├── enums.py                   # Finger, GestureState, SignalQuality, StartupMode...
+    │   ├── landmark_indices.py        # Raw MediaPipe landmark index constants
+    │   ├── models.py                  # FingerConfig, FingerCalibration data classes
+    │   ├── finger_metrics.py          # Landmark → extension math, pose/fist detection
+    │   ├── finger_state.py            # EMA smoothing + hysteresis + debounce
+    │   └── gesture_classifier.py      # Chord matching, GestureHold, signal quality
+    ├── vision/                      # Video capture + MediaPipe inference
+    │   ├── camera_feed.py              # Threaded camera reader
+    │   ├── hand_estimator.py           # HandLandmarker wrapper
+    │   └── model_provider.py           # Model download/cache
+    ├── automation/                  # Keyboard input dispatch
+    │   └── input_controller.py         # PyDirectInput wrapper behind a typed interface
+    ├── ui/                          # OpenCV canvas/HUD rendering
+    │   ├── theme.py                    # Layout geometry + black-theme colour palette
+    │   ├── text.py                     # Word-wrap text helpers
+    │   ├── canvas.py                   # Base camera+sidebar canvas builder
+    │   ├── widgets.py                  # Small reusable drawing widgets (bars, role lookup)
+    │   ├── skeleton_overlay.py         # Hand-landmark skeleton drawing
+    │   ├── setup_screen.py             # Finger-assignment wizard screen
+    │   ├── calibration_screen.py       # Calibration wizard screen
+    │   └── hud_screen.py               # In-game HUD screen
+    └── workflow/                    # Application orchestration
+        ├── setup_wizard.py             # run_setup() interactive loop
+        ├── calibration_wizard.py       # run_calibration() interactive loop
+        ├── controller_loop.py          # run_controller() main gameplay loop
+        ├── startup_menu.py             # Console quick-start/custom menu
+        └── application.py              # Application class — wires everything together
 ```
 
 ## Credits
