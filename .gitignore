@@ -1,3 +1,6 @@
 __pycache__/
 *.pyc
 .vscode/
+.clinerules/agent-instruction.md
+.agents/skills/
+hand_config.json
