@@ -51,6 +51,7 @@ def draw_hud(
     jump_flash: int,
     slide_holding: bool,
     tracking_on: bool,
+    latency_ms: float = 0.0,
 ) -> None:
     """Draw the full in-game HUD onto an already-built canvas."""
     # Colour flash around the camera preview only — instant feedback readable
@@ -105,12 +106,20 @@ def draw_hud(
                      finger_state.extension[i], on_r, off_r, up)
             y += 24
 
+    # FPS + Latency — rendered as a two-line block pinned to the bottom of the
+    # sidebar so they always sit near each other.
     fps_str = f"FPS:{fps:.0f}"
-    (tw, _), _ = cv2.getTextSize(fps_str, FONT, FS_S, 1)
-    cv2.putText(canvas, fps_str, (SIDEBAR_X + SIDEBAR_WIDTH - tw - 12, CANVAS_H - UI_PADDING - 54),
+    lat_str = f"LAT:{latency_ms:.0f}ms"
+    (fps_w, _), _ = cv2.getTextSize(fps_str, FONT, FS_S, 1)
+    (lat_w, _), _ = cv2.getTextSize(lat_str, FONT, FS_S, 1)
+    right_edge = SIDEBAR_X + SIDEBAR_WIDTH - 12
+    cv2.putText(canvas, fps_str, (right_edge - fps_w, CANVAS_H - UI_PADDING - 54),
                 FONT, FS_S, C_GREEN, 1)
+    cv2.putText(canvas, lat_str, (right_edge - lat_w, CANVAS_H - UI_PADDING - 38),
+                FONT, FS_S, C_YELLOW, 1)
 
     cv2.putText(canvas, "r:setup  c:swap-keys  l:skeleton", (x0, CANVAS_H - UI_PADDING - 32),
                 FONT, FS_S, C_WHITE, 1)
     cv2.putText(canvas, "h:toggle-hud  t:tracking  q:quit", (x0, CANVAS_H - UI_PADDING - 12),
                 FONT, FS_S, C_WHITE, 1)
+

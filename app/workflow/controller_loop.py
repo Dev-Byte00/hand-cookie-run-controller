@@ -101,6 +101,7 @@ def run_controller(
     tracking_on: bool = True
 
     fps = 0.0
+    latency_ms = 0.0
     prev_t = time.perf_counter()
     frame_failures = 0
     last_jump: float = 0.0
@@ -117,7 +118,7 @@ def run_controller(
                 draw_hud(canvas, "TRACKING OFF", "-", finger_state, config, fps,
                          confidence="N/A", confidence_colour=C_GREY,
                          minimal=hud_minimal, jump_flash=0, slide_holding=False,
-                         tracking_on=False)
+                         tracking_on=False, latency_ms=0.0)
                 if show_window:
                     cv2.imshow(window_title, canvas)
                     k = cv2.waitKey(30) & 0xFF
@@ -168,7 +169,11 @@ def run_controller(
                 last_frame = frame
                 now = time.perf_counter()
 
+                _inf_t0 = time.perf_counter()
                 landmarks = estimator.process(frame)
+                _inf_ms = (time.perf_counter() - _inf_t0) * 1000.0
+                latency_ms = latency_ms * (1.0 - settings.fps_alpha) + _inf_ms * settings.fps_alpha
+
                 finger_state.update(landmarks, detection.hand_lost_tolerance)
                 ext = finger_state.extended
                 if jump_flash > 0:
@@ -225,7 +230,8 @@ def run_controller(
                          confidence=confidence.value,
                          confidence_colour=_CONFIDENCE_COLOURS[confidence],
                          minimal=hud_minimal, jump_flash=jump_flash,
-                         slide_holding=slide_holding, tracking_on=True)
+                         slide_holding=slide_holding, tracking_on=True,
+                         latency_ms=latency_ms)
 
             if show_window:
                 cv2.imshow(window_title, canvas)
